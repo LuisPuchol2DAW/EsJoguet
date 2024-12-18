@@ -2,4 +2,12 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+
+    <color name="tile_2">#EEE4DA</color>
+    <color name="tile_4">#EDE0C8</color>
+    <color name="tile_8">#F2B179</color>
+    <color name="tile_16">#F59563</color>
+    <color name="tile_empty">#CDC1B4</color>
+    <color name="tile_default">#FFFFFF</color>
 </resources>
