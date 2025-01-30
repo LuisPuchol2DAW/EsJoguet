@@ -5,6 +5,7 @@ import android.os.Bundle;
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.os.Looper;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -18,6 +19,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import android.os.Handler;
+import android.os.Looper;
+import java.util.logging.LogRecord;
 
 public class Activity_2048Game extends AppCompatActivity implements GestureDetector.OnGestureListener {
 
@@ -25,8 +29,7 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
     private GestureDetector gestureDetector;
     private float startX, startY, endX, endY;
 
-
-    private final int GRID_SIZE = 4; // Tamaño del tablero (4x4)
+    private final int GRID_SIZE = 4;
     private final int MOVE_UP = -1;
     private final int MOVE_DOWN = 1;
     private final int MOVE_LEFT = -1;
@@ -34,10 +37,13 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
     private final int noMove = 0;
 
     private final Map<Integer, Integer> tileColors = new HashMap<>();
-
-    private Integer[][] board; // Representa los valores del tablero
-    private TextView[][] tiles; // Almacena las referencias a los TextViews
-    private Random random = new Random(); // Para elegir casillas y valores aleatorios
+    private Integer[][] board; // valores
+    private TextView[][] tiles; // Referencias
+    private TextView tvScoreCounter, tvBestScoreCounter, tvMovesCounter, tvTimeCounter;
+    private Integer scoreCounter = 0, bestScoreCounter, movesCounter = 0, timeCounter = 0;
+    private Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable runnable;
+    private Random random = new Random();
     private Boolean hasGameStarted = false;
 
     @Override
@@ -55,10 +61,35 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
     private void startGame() {
         spawnRandomTile();
         spawnRandomTile();
-        // iniciar contador
+    }
+
+    private void startTimer() {
+        runnable = new Runnable() {
+            @Override
+            public void run() {
+                timeCounter++;
+
+                int minutes = timeCounter / 60;
+                int seconds = timeCounter % 60;
+                String timeString = String.format("%02d:%02d", minutes, seconds);
+                tvTimeCounter.setText(timeString);
+
+                handler.postDelayed(this, 1000);
+            }
+        };
+        handler.post(runnable); // Start the timer
+    }
+
+    private void stopTimer() {
+        handler.removeCallbacks(runnable);
     }
 
     private void startGameLayout() {
+        tvScoreCounter = findViewById(R.id.scoreCounter);
+        tvBestScoreCounter = findViewById(R.id.bestScoreCounter);
+        tvMovesCounter = findViewById(R.id.movesCounter);
+        tvTimeCounter = findViewById(R.id.timeCounter);
+
         board = new Integer[GRID_SIZE][GRID_SIZE];
         tiles = new TextView[GRID_SIZE][GRID_SIZE];
 
@@ -94,7 +125,7 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
         searchEmptyTiles(emptyTiles);
 
         if (emptyTiles.isEmpty()) {
-            return; // No hay casillas vacías, el juego ha terminado
+            return;
         }
 
         Integer[] position = emptyTiles.get(random.nextInt(emptyTiles.size()));
@@ -108,7 +139,6 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
 
         updateTileUI(row, col, value);
 
-        // Encuentra una posición vacía aleatoria y asigna un 2 o 4
     }
 
     private void searchEmptyTiles(ArrayList<Integer[]> emptyTiles) {
@@ -150,42 +180,26 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
 
     private void moveTiles(int direction) {
 
+        //Crear metodo para verificar si se puede si quiera mover, para poder detectar el fin de la partida.
+        updateMovesCounter();
+
+        if (!hasGameStarted) {
+            hasGameStarted = true;
+            startTimer();
+        }
+
         switch (direction) {
             case 0:
-                for (int i = 0; i < GRID_SIZE; i++) {
-                    for (int j = 0; j < GRID_SIZE; j++) {
-                        if (!isEmptyTile(board[i][j])) {
-                            checkMoveAndAddNearbyTile(i, j, MOVE_UP, noMove, 0, 5);
-                        }
-                    }
-                }
+                moveUp();
                 break;
             case 1:
-                for (int i = 0; i < GRID_SIZE; i++) {
-                    for (int j = 0; j < GRID_SIZE; j++) {
-                        if (!isEmptyTile(board[i][j])) {
-                            checkMoveAndAddNearbyTile(i, j, noMove, MOVE_LEFT, 5, 0);
-                        }
-                    }
-                }
+                moveLeft();
                 break;
             case 2:
-                for (int i = GRID_SIZE - 1; i >= 0; i--) {
-                    for (int j = GRID_SIZE - 1; j >= 0; j--) {
-                        if (!isEmptyTile(board[i][j])) {
-                            checkMoveAndAddNearbyTile(i, j, noMove, MOVE_RIGHT, 5, 3);
-                        }
-                    }
-                }
+                moveRight();
                 break;
             case 3:
-                for (int i = GRID_SIZE - 1; i >= 0; i--) {
-                    for (int j = GRID_SIZE - 1; j >= 0; j--) {
-                        if (!isEmptyTile(board[i][j])) {
-                            checkMoveAndAddNearbyTile(i, j, MOVE_DOWN, noMove, 3, 5);
-                        }
-                    }
-                }
+                moveDown();
                 break;
             default:
                 break;
@@ -193,11 +207,47 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
         spawnRandomTile();
     }
 
-    private void checkMoveAndAddNearbyTile(int i, int j, int moveRow, int moveColumn, int breakConditionRow, Integer breakConditionColumn) {
-        //int[] counters = updateCounters(i, j, moveRow, moveColumn);
-        //int newRow = counters[0];
-        //int newColumn = counters[1];
+    private void moveDown() {
+        for (int i = GRID_SIZE - 1; i >= 0; i--) {
+            for (int j = GRID_SIZE - 1; j >= 0; j--) {
+                if (!isEmptyTile(board[i][j])) {
+                    checkMoveAndAddNearbyTile(i, j, MOVE_DOWN, noMove, 3, 5);
+                }
+            }
+        }
+    }
 
+    private void moveRight() {
+        for (int i = GRID_SIZE - 1; i >= 0; i--) {
+            for (int j = GRID_SIZE - 1; j >= 0; j--) {
+                if (!isEmptyTile(board[i][j])) {
+                    checkMoveAndAddNearbyTile(i, j, noMove, MOVE_RIGHT, 5, 3);
+                }
+            }
+        }
+    }
+
+    private void moveLeft() {
+        for (int i = 0; i < GRID_SIZE; i++) {
+            for (int j = 0; j < GRID_SIZE; j++) {
+                if (!isEmptyTile(board[i][j])) {
+                    checkMoveAndAddNearbyTile(i, j, noMove, MOVE_LEFT, 5, 0);
+                }
+            }
+        }
+    }
+
+    private void moveUp() {
+        for (int i = 0; i < GRID_SIZE; i++) {
+            for (int j = 0; j < GRID_SIZE; j++) {
+                if (!isEmptyTile(board[i][j])) {
+                    checkMoveAndAddNearbyTile(i, j, MOVE_UP, noMove, 0, 5);
+                }
+            }
+        }
+    }
+
+    private void checkMoveAndAddNearbyTile(int i, int j, int moveRow, int moveColumn, int breakConditionRow, Integer breakConditionColumn) {
         Integer newRow = i + moveRow;
         Integer newColumn = j + moveColumn;
 
@@ -205,6 +255,7 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
             if (!isEmptyTile(board[newRow][newColumn]) && board[newRow][newColumn].equals(board[i][j])) {
                 //move and add
                 updateTile(i, j, newRow, newColumn, board[i][j] * 2);
+                updateScore(newRow, newColumn);
                 break;
             } else if (!isEmptyTile(board[newRow][newColumn])) {
                 //cant add
@@ -213,7 +264,6 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
 
             //move
             updateTile(i, j, newRow, newColumn, board[i][j]);
-
             //adjust Counters
             if (moveRow != 0) {
                 i += moveRow;
@@ -225,10 +275,15 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
         }
     }
 
-    private int[] updateCounters(int i, int j, int moveRow, int moveColumn) {
-        return new int[]{i + moveRow, j + moveColumn};
+    private void updateMovesCounter() {
+        movesCounter++;
+        tvMovesCounter.setText(movesCounter.toString());
     }
 
+    private void updateScore(Integer newRow, Integer newColumn) {
+        scoreCounter += board[newRow][newColumn];
+        tvScoreCounter.setText(scoreCounter.toString());
+    }
 
     private void updateTile(int row, int col, int newRow, int newCol, int value) {
         updateTileUI(newRow, newCol, value);
