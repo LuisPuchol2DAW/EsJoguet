@@ -18,10 +18,9 @@ import androidx.core.view.WindowInsetsCompat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import android.os.Handler;
-import android.os.Looper;
-import java.util.logging.LogRecord;
 
 public class Activity_2048Game extends AppCompatActivity implements GestureDetector.OnGestureListener {
 
@@ -29,12 +28,19 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
     private GestureDetector gestureDetector;
     private float startX, startY, endX, endY;
 
-    private final int GRID_SIZE = 4;
-    private final int MOVE_UP = -1;
-    private final int MOVE_DOWN = 1;
-    private final int MOVE_LEFT = -1;
-    private final int MOVE_RIGHT = 1;
-    private final int noMove = 0;
+    private static final int GRID_SIZE = 4;
+
+    private static final int MOVE_UP = -1;
+    private static final int MOVE_DOWN = 1;
+    private static final int MOVE_LEFT = -1;
+    private static final int MOVE_RIGHT = 1;
+    private static final int NO_MOVE = 0;
+
+    private static final int LAST_ROW = GRID_SIZE - 1; // Última fila válida (3 si GRID_SIZE = 4)
+    private static final int LAST_COLUMN = GRID_SIZE - 1; // Última columna válida
+    private static final int FIRST_COLUMN = 0; // Primera columna válida
+    private static final int FIRST_ROW = 0; // Primera fila válida
+    private static final int ALWAYS_TRUE = GRID_SIZE + 1; // Valor imposible dentro del rango de la matriz
 
     private final Map<Integer, Integer> tileColors = new HashMap<>();
     private Integer[][] board; // valores
@@ -115,13 +121,16 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
     }
 
     private Boolean isEmptyTile(Integer tileValue) {
-        return tileValue == null;
+        return Objects.isNull(tileValue);
     }
 
+    /**
+     * Spawns a new tile (either 2 or 4) in a random empty position on the board.
+     * A 90% probability is given for a 2 and a 10% probability for a 4.
+     * If no empty positions are available, the method does nothing.
+     */
     private void spawnRandomTile() {
         ArrayList<Integer[]> emptyTiles = new ArrayList<>();
-
-        // Busca las casillas vacías en el tablero
         searchEmptyTiles(emptyTiles);
 
         if (emptyTiles.isEmpty()) {
@@ -132,14 +141,12 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
         Integer row = position[0];
         Integer col = position[1];
 
-        Integer value = random.nextFloat() < 0.9 ? 2 : 4; // 90% de probabilidad de 2, 10% de probabilidad de 4
+        Integer value = random.nextFloat() < 0.9 ? 2 : 4;
 
         board[row][col] = value;
-
-
         updateTileUI(row, col, value);
-
     }
+
 
     private void searchEmptyTiles(ArrayList<Integer[]> emptyTiles) {
         for (int i = 0; i < GRID_SIZE; i++) {
@@ -178,9 +185,16 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
         tile.setBackgroundResource(colorResource);
     }
 
+    /**
+     * Moves the tiles in the given direction and spawns a new tile.
+     *
+     * @param direction The movement direction:
+     *                  - 0: Up
+     *                  - 1: Left
+     *                  - 2: Right
+     *                  - 3: Down
+     */
     private void moveTiles(int direction) {
-
-        //Crear metodo para verificar si se puede si quiera mover, para poder detectar el fin de la partida.
         updateMovesCounter();
 
         if (!hasGameStarted) {
@@ -188,30 +202,25 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
             startTimer();
         }
 
-        switch (direction) {
-            case 0:
-                moveUp();
-                break;
-            case 1:
-                moveLeft();
-                break;
-            case 2:
-                moveRight();
-                break;
-            case 3:
-                moveDown();
-                break;
-            default:
-                break;
+        if (direction == 0) {
+            moveUp();
+        } else if (direction == 1) {
+            moveLeft();
+        } else if (direction == 2) {
+            moveRight();
+        } else if (direction == 3) {
+            moveDown();
         }
+
         spawnRandomTile();
     }
+
 
     private void moveDown() {
         for (int i = GRID_SIZE - 1; i >= 0; i--) {
             for (int j = GRID_SIZE - 1; j >= 0; j--) {
                 if (!isEmptyTile(board[i][j])) {
-                    checkMoveAndAddNearbyTile(i, j, MOVE_DOWN, noMove, 3, 5);
+                    checkMoveAndAddNearbyTile(i, j, MOVE_DOWN, NO_MOVE, LAST_ROW, ALWAYS_TRUE);
                 }
             }
         }
@@ -221,7 +230,7 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
         for (int i = GRID_SIZE - 1; i >= 0; i--) {
             for (int j = GRID_SIZE - 1; j >= 0; j--) {
                 if (!isEmptyTile(board[i][j])) {
-                    checkMoveAndAddNearbyTile(i, j, noMove, MOVE_RIGHT, 5, 3);
+                    checkMoveAndAddNearbyTile(i, j, NO_MOVE, MOVE_RIGHT, ALWAYS_TRUE, LAST_COLUMN);
                 }
             }
         }
@@ -231,7 +240,7 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
         for (int i = 0; i < GRID_SIZE; i++) {
             for (int j = 0; j < GRID_SIZE; j++) {
                 if (!isEmptyTile(board[i][j])) {
-                    checkMoveAndAddNearbyTile(i, j, noMove, MOVE_LEFT, 5, 0);
+                    checkMoveAndAddNearbyTile(i, j, NO_MOVE, MOVE_LEFT, ALWAYS_TRUE, FIRST_COLUMN);
                 }
             }
         }
@@ -241,30 +250,42 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
         for (int i = 0; i < GRID_SIZE; i++) {
             for (int j = 0; j < GRID_SIZE; j++) {
                 if (!isEmptyTile(board[i][j])) {
-                    checkMoveAndAddNearbyTile(i, j, MOVE_UP, noMove, 0, 5);
+                    checkMoveAndAddNearbyTile(i, j, MOVE_UP, NO_MOVE, FIRST_ROW, ALWAYS_TRUE);
                 }
             }
         }
     }
 
-    private void checkMoveAndAddNearbyTile(int i, int j, int moveRow, int moveColumn, int breakConditionRow, Integer breakConditionColumn) {
-        Integer newRow = i + moveRow;
-        Integer newColumn = j + moveColumn;
 
-        while (i != breakConditionRow && j != breakConditionColumn) {
+    /**
+     * Checks if a tile can move or merge with an adjacent tile.
+     *
+     * @param i                   Current row position.
+     * @param j                   Current column position.
+     * @param moveRow             Row movement (-1 for up, 1 for down, 0 for none).
+     * @param moveColumn          Column movement (-1 for left, 1 for right, 0 for none).
+     * @param breakConditionRow   Row boundary condition for stopping.
+     * @param breakConditionCol   Column boundary condition for stopping.
+     */
+    private void checkMoveAndAddNearbyTile(int i, int j, int moveRow, int moveColumn, int breakConditionRow, int breakConditionCol) {
+        int newRow = i + moveRow;
+        int newColumn = j + moveColumn;
+
+        while (i != breakConditionRow && j != breakConditionCol) {
             if (!isEmptyTile(board[newRow][newColumn]) && board[newRow][newColumn].equals(board[i][j])) {
-                //move and add
+                // Merge tiles
                 updateTile(i, j, newRow, newColumn, board[i][j] * 2);
                 updateScore(newRow, newColumn);
                 break;
             } else if (!isEmptyTile(board[newRow][newColumn])) {
-                //cant add
+                // Can't move further
                 break;
             }
 
-            //move
+            // Move tile
             updateTile(i, j, newRow, newColumn, board[i][j]);
-            //adjust Counters
+
+            // Adjust indices
             if (moveRow != 0) {
                 i += moveRow;
                 newRow += moveRow;
@@ -274,6 +295,7 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
             }
         }
     }
+
 
     private void updateMovesCounter() {
         movesCounter++;
@@ -303,31 +325,33 @@ public class Activity_2048Game extends AppCompatActivity implements GestureDetec
         });
     }
 
+    /**
+     * Handles swipe gestures and moves tiles accordingly.
+     */
     @Override
     public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-        //parte de abajo de la pantalla mayor valor Y
-        //parte derecha de la pantalla mayor valor X
-        Log.d(TAG, "onFling: Fling gesture detected with velocityX = " + velocityX + " and velocityY = " + velocityY);
+        Log.d(TAG, "onFling detected with velocityX = " + velocityX + " and velocityY = " + velocityY);
 
-        float movementX = startX - endX;
-        float movementY = startY - endY;
+        float deltaX = e2.getX() - e1.getX();
+        float deltaY = e2.getY() - e1.getY();
 
-        if (movementY > movementX && movementY > -movementX) {
-            Log.d(TAG, "onFling: Fling gesture detected up");
-            moveTiles(0);
-        } else if (movementX > movementY && movementX > -movementY) {
-            Log.d(TAG, "onFling: Fling gesture detected left");
-            moveTiles(1);
-        } else if (movementY > movementX && movementY < -movementX) {
-            Log.d(TAG, "onFling: Fling gesture detected right");
-            moveTiles(2);
-        } else if (movementX > movementY && movementX < -movementY) {
-            Log.d(TAG, "onFling: Fling gesture detected down");
-            moveTiles(3);
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            if (deltaX > 0) {
+                moveTiles(2); // Right
+            } else {
+                moveTiles(1); // Left
+            }
+        } else {
+            if (deltaY > 0) {
+                moveTiles(3); // Down
+            } else {
+                moveTiles(0); // Up
+            }
         }
-
         return true;
     }
+
+
 
     @Override
     public boolean onDown(MotionEvent e) {
